@@ -56,11 +56,11 @@ data Path l c = Path { _pathLength :: !l
                      } deriving (Show,Eq)
 makeLenses ''Path
 
-type PredecessorMap = Map.Map Coord (WayCost,Maybe Coord)
+type PredecessorMap c = Map.Map c (WayCost,Maybe c)
 
 data PathFinderState c = PathFinderState { _closed :: Set.Set c
                                          , _open :: PSQ.PSQ c HeuristicScore
-                                         , _seen :: PredecessorMap
+                                         , _seen :: PredecessorMap c
                                          }
 makeLenses ''PathFinderState
 
@@ -123,7 +123,7 @@ visitAndExpand :: ( Applicative m
                   ) => Coord -> m ()
 visitAndExpand c = visit c >> expand c >>= analyzeNbs c
 
-reconstructPath :: Coord -> PredecessorMap -> Maybe (Path Double Coord)
+reconstructPath :: Coord -> PredecessorMap Coord -> Maybe (Path Double Coord)
 reconstructPath finish pmap = do
   (totalCost,predec) <- Map.lookup finish pmap
   case predec of
