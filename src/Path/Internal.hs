@@ -1,31 +1,17 @@
-{-# LANGUAGE TemplateHaskell, GeneralizedNewtypeDeriving, FlexibleContexts #-}
-module Path.Internal ( findPath
-                     , expand
-                     , visit
-                     , analyzeNbs
-                     , reconstructPath
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-                     , PathFinderState (PathFinderState)
-                     , closed
-                     , open
-                     , seen
-                     , alreadyVisited
-
-                     , PathFinderConfig (PathFinderConfig)
-                     , canBeWalked
-                     , heuristicCost
-
-                     , PathFinder
-                     , runPathFinder
-                     , evalPathFinder
-                     , execPathFinder
-
-                     , Path
+module Path.Internal ( Path
                      , pathLength
                      , pathCoords
+
+                     , pathFinderSearch
                      ) where
 
-import Control.Lens (view, (%=), use, (.=))
+import Control.Lens.Operators
+import Control.Lens (view, use)
 import Control.Lens.TH
 import Control.Applicative (Applicative, (<*>),(<$>),pure)
 import Control.Monad(when, unless)
@@ -81,18 +67,6 @@ runPathFinder :: PathFinderConfig c Double ->
                  (a,PathFinderState c)
 runPathFinder c st (PathFinder a) = runIdentity $ runStateT (runReaderT a c) st
 
-execPathFinder :: PathFinderConfig c Double ->
-                  PathFinderState c ->
-                  PathFinder c a ->
-                  PathFinderState c
-execPathFinder c st a = snd $ runPathFinder c st a
-
-evalPathFinder :: PathFinderConfig c Double ->
-                  PathFinderState c ->
-                  PathFinder c a ->
-                  a
-evalPathFinder c st a = fst $ runPathFinder c st a
-
 findPath :: Ord c => c -> PathFinder c (Maybe (Path Double c))
 findPath current = do
   goalReached <- view isGoal <*> pure current
@@ -118,14 +92,14 @@ visitAndExpand :: ( Ord c
                   ) => c -> m ()
 visitAndExpand c = visit c >> expand c >>= analyzeNbs c
 
-reconstructPath :: Ord c => c -> PredecessorMap c -> Maybe (Path Double c)
+reconstructPath :: forall c. Ord c => c -> PredecessorMap c -> Maybe (Path Double c)
 reconstructPath finish pmap = do
   (totalCost,predec) <- Map.lookup finish pmap
   case predec of
     Nothing -> return $ Path 0 []
     Just _ -> return $ Path totalCost (reverse $ go finish)
   where
-    -- go :: Ord a => a -> [a]
+    go :: Ord c => c -> [c]
     go current = case Map.lookup current pmap of
       Nothing -> []
       Just (_, Just predec) -> current : go predec
@@ -191,3 +165,19 @@ visit c = closed %= Set.insert c
 
 alreadyVisited :: (Ord c, Functor m, MonadState (PathFinderState c) m) => c -> m Bool
 alreadyVisited c = Set.member c <$> use closed
+
+pathFinderSearch :: forall c. Ord c =>
+                    (c -> [c])
+                 -> (c -> Bool)
+                 -> (c -> Double)
+                 -> (c -> c -> Double)
+                 -> c
+                 -> (c -> Bool)
+                 -> (Maybe (Path Double c), PathFinderState c)
+pathFinderSearch nbs walkable heuristic step start isGoalP =
+  runPathFinder config initState $ findPath start
+  where
+    config = PathFinderConfig walkable heuristic step nbs isGoalP
+    initState :: (PathFinderState c)
+    initState = def & seen %~ Map.insert start (0,Nothing)
+                    & open %~ PSQ.insert start 0
