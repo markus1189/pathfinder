@@ -25,6 +25,8 @@ import qualified Linear.Metric as LM
 
 import Path.Internal
 
+type Coord = V3 Double
+
 searchPath :: (Coord -> Bool)            -- ^ Check if coord is allowed
            -> (Coord -> Double)          -- ^ Heuristic value for the coord
            -> (Coord -> Coord -> Double) -- ^ Cost to go from coord to coord
