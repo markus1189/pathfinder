@@ -28,46 +28,50 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.PSQueue as PSQ
 
-type HeuristicScore = Double
-type WayCost = Double
-
 data Path l c = Path { _pathLength :: !l
                      , _pathCoords :: [c]
                      } deriving (Show,Eq)
 makeLenses ''Path
 
-type PredecessorMap c = Map.Map c (WayCost,Maybe c)
+type PredecessorMap coord cost = Map.Map coord (cost,Maybe coord)
 
-data PathFinderState c = PathFinderState { _closed :: Set.Set c
-                                         , _open :: PSQ.PSQ c HeuristicScore
-                                         , _seen :: PredecessorMap c
-                                         }
+data PathFinderState coord score cost =
+    PathFinderState { _closed :: Set.Set coord
+                    , _open :: PSQ.PSQ coord score
+                    , _seen :: PredecessorMap coord cost
+                    }
 makeLenses ''PathFinderState
 
 
-instance Ord c => Default (PathFinderState c) where
+instance (Ord coord, Ord score) => Default (PathFinderState coord score cost) where
   def = PathFinderState def PSQ.empty def
 
-data PathFinderConfig c n = PathFinderConfig { _canBeWalked :: c -> Bool
-                                             , _heuristicCost :: c -> n
-                                             , _stepCost :: c -> c -> n
-                                             , _neighbors :: c -> [c]
-                                             , _isGoal :: c -> Bool
-                                             }
+data PathFinderConfig coord cost score =
+    PathFinderConfig { _canBeWalked :: coord -> Bool
+                     , _heuristicScore :: coord -> score
+                     , _stepCost :: coord -> coord -> cost
+                     , _neighbors :: coord -> [coord]
+                     , _isGoal :: coord -> Bool
+                     }
 makeLenses ''PathFinderConfig
 
-newtype PathFinder c a = PathFinder (ReaderT (PathFinderConfig c Double) (
-                                      StateT (PathFinderState c) Identity) a)
+newtype PathFinder coord cost score a =
+    PathFinder (ReaderT
+                (PathFinderConfig coord cost score)
+                (StateT (PathFinderState coord score cost) Identity) a)
     deriving ( Functor, Applicative, Monad
-             , MonadState (PathFinderState c), MonadReader (PathFinderConfig c Double))
+             , MonadState (PathFinderState coord score cost)
+             , MonadReader (PathFinderConfig coord cost score))
 
-runPathFinder :: PathFinderConfig c Double ->
-                 PathFinderState c ->
-                 PathFinder c a ->
-                 (a,PathFinderState c)
+runPathFinder :: PathFinderConfig coord Double Double ->
+                 PathFinderState coord Double Double ->
+                 PathFinder coord Double Double a ->
+                 (a,PathFinderState coord Double Double)
 runPathFinder c st (PathFinder a) = runIdentity $ runStateT (runReaderT a c) st
 
-findPath :: Ord c => c -> PathFinder c (Maybe (Path Double c))
+findPath :: Ord coord =>
+            coord
+         -> PathFinder coord Double Double (Maybe (Path Double coord))
 findPath current = do
   goalReached <- view isGoal <*> pure current
   if goalReached
@@ -85,39 +89,43 @@ findPath current = do
                                then return Nothing
                                else action
 
-visitAndExpand :: ( Ord c
+visitAndExpand :: ( Ord coord
                   , Applicative m
-                  , MonadState (PathFinderState c) m
-                  , MonadReader (PathFinderConfig c Double) m
-                  ) => c -> m ()
+                  , MonadState (PathFinderState coord Double Double) m
+                  , MonadReader (PathFinderConfig coord Double Double) m
+                  ) => coord -> m ()
 visitAndExpand c = visit c >> expand c >>= analyzeNbs c
 
-reconstructPath :: forall c. Ord c => c -> PredecessorMap c -> Maybe (Path Double c)
+reconstructPath :: forall coord. Ord coord =>
+                   coord
+                -> PredecessorMap coord Double
+                -> Maybe (Path Double coord)
 reconstructPath finish pmap = do
   (totalCost,predec) <- Map.lookup finish pmap
   case predec of
     Nothing -> return $ Path 0 []
     Just _ -> return $ Path totalCost (reverse $ go finish)
   where
-    go :: Ord c => c -> [c]
+    go :: Ord coord => coord -> [coord]
     go current = case Map.lookup current pmap of
       Nothing -> []
       Just (_, Just predec) -> current : go predec
       Just (_, Nothing) -> [current]
 
-nodesLeftToExpand :: (Functor m, MonadState (PathFinderState c) m) => m Int
+nodesLeftToExpand :: ( Functor m
+                     , MonadState (PathFinderState coord Double Double) m) => m Int
 nodesLeftToExpand = PSQ.size <$> use open
 
 expand :: ( Applicative m
-          , MonadReader (PathFinderConfig c Double) m
-          ) => c -> m [c]
+          , MonadReader (PathFinderConfig coord Double Double) m
+          ) => coord -> m [coord]
 expand coord = filter <$> view canBeWalked <*> (view neighbors <*> pure coord)
 
-analyzeNb :: ( Ord c
+analyzeNb :: ( Ord coord
              , Applicative m
-             , MonadReader (PathFinderConfig c Double) m
-             , MonadState (PathFinderState c) m
-             ) => c -> c -> m ()
+             , MonadReader (PathFinderConfig coord Double Double) m
+             , MonadState (PathFinderState coord Double Double) m
+             ) => coord -> coord -> m ()
 analyzeNb predecessor nb = do
   alreadySeen <- alreadyVisited nb
   costSoFar <- costFor predecessor
@@ -125,25 +133,28 @@ analyzeNb predecessor nb = do
   let newCost = (+) <$> costSoFar <*> pure estimation
   mayUpdateCost newCost nb predecessor
   unless alreadySeen $ do
-      heuristicValue <- view heuristicCost <*> pure nb
+      heuristicValue <- view heuristicScore <*> pure nb
       when (isJust newCost) $
         open %= insertIfNotPresent nb (fromJust newCost + heuristicValue)
 
-analyzeNbs :: ( Ord c
+analyzeNbs :: ( Ord coord
               , Applicative m
-              , MonadReader (PathFinderConfig c Double) m
-              , MonadState (PathFinderState c) m
-              ) => c -> [c] -> m ()
+              , MonadReader (PathFinderConfig coord Double Double) m
+              , MonadState (PathFinderState coord Double Double) m
+              ) => coord -> [coord] -> m ()
 analyzeNbs predecessor = mapM_ (analyzeNb predecessor)
 
-costFor :: ( Ord c
-           ,Functor m
-           , MonadState (PathFinderState c) m
-           ) => c -> m (Maybe WayCost)
+costFor :: ( Ord coord
+           , Functor m
+           , MonadState (PathFinderState coord Double cost) m
+           ) => coord -> m (Maybe cost)
 costFor c = (fmap . fmap) fst $ Map.lookup c <$> use seen
 
-mayUpdateCost :: (Ord c, Functor m, MonadState (PathFinderState c) m) =>
-              Maybe WayCost -> c -> c -> m ()
+mayUpdateCost :: ( Ord coord
+                 , Ord cost
+                 , Functor m
+                 , MonadState (PathFinderState coord Double cost) m
+                 ) => Maybe cost -> coord -> coord -> m ()
 mayUpdateCost Nothing _ _ = return ()
 mayUpdateCost (Just cost) target origin = do
   previous <- costFor target
@@ -160,24 +171,26 @@ insertIfNotPresent key prio queue =
     Just _ -> queue
     Nothing -> PSQ.insert key prio queue
 
-visit :: Ord c => MonadState (PathFinderState c) m => c -> m ()
+visit :: Ord coord => MonadState (PathFinderState coord Double Double) m => coord -> m ()
 visit c = closed %= Set.insert c
 
-alreadyVisited :: (Ord c, Functor m, MonadState (PathFinderState c) m) => c -> m Bool
+alreadyVisited :: ( Ord coord
+                  , Functor m
+                  , MonadState (PathFinderState coord Double Double) m) => coord -> m Bool
 alreadyVisited c = Set.member c <$> use closed
 
-pathFinderSearch :: forall c. Ord c =>
-                    (c -> [c])
-                 -> (c -> Bool)
-                 -> (c -> Double)
-                 -> (c -> c -> Double)
-                 -> c
-                 -> (c -> Bool)
-                 -> (Maybe (Path Double c), PathFinderState c)
+pathFinderSearch :: forall coord. Ord coord =>
+                    (coord -> [coord])
+                 -> (coord -> Bool)
+                 -> (coord -> Double)
+                 -> (coord -> coord -> Double)
+                 -> coord
+                 -> (coord -> Bool)
+                 -> (Maybe (Path Double coord), PathFinderState coord Double Double)
 pathFinderSearch nbs walkable heuristic step start isGoalP =
   runPathFinder config initState $ findPath start
   where
     config = PathFinderConfig walkable heuristic step nbs isGoalP
-    initState :: (PathFinderState c)
+    initState :: (PathFinderState coord Double Double)
     initState = def & seen %~ Map.insert start (0,Nothing)
                     & open %~ PSQ.insert start 0
