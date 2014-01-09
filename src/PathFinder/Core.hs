@@ -35,7 +35,7 @@ makeLenses ''Path
 
 type PredecessorMap coord cost = Map.Map coord (cost,Maybe coord)
 
-data PathFinderState coord score cost =
+data PathFinderState coord cost score =
     PathFinderState { _closed :: Set.Set coord
                     , _open :: PSQ.PSQ coord score
                     , _seen :: PredecessorMap coord cost
@@ -43,7 +43,7 @@ data PathFinderState coord score cost =
 makeLenses ''PathFinderState
 
 
-instance (Ord coord, Ord score) => Default (PathFinderState coord score cost) where
+instance (Ord coord, Ord score) => Default (PathFinderState coord cost score) where
   def = PathFinderState def PSQ.empty def
 
 data PathFinderConfig coord cost score =
@@ -117,7 +117,7 @@ nodesLeftToExpand :: ( Functor m
 nodesLeftToExpand = PSQ.size <$> use open
 
 expand :: ( Applicative m
-          , MonadReader (PathFinderConfig coord Double Double) m
+          , MonadReader (PathFinderConfig coord cost score) m
           ) => coord -> m [coord]
 expand coord = filter <$> view canBeWalked <*> (view neighbors <*> pure coord)
 
@@ -146,14 +146,14 @@ analyzeNbs predecessor = mapM_ (analyzeNb predecessor)
 
 costFor :: ( Ord coord
            , Functor m
-           , MonadState (PathFinderState coord Double cost) m
+           , MonadState (PathFinderState coord cost Double) m
            ) => coord -> m (Maybe cost)
 costFor c = (fmap . fmap) fst $ Map.lookup c <$> use seen
 
 mayUpdateCost :: ( Ord coord
                  , Ord cost
                  , Functor m
-                 , MonadState (PathFinderState coord Double cost) m
+                 , MonadState (PathFinderState coord cost Double) m
                  ) => Maybe cost -> coord -> coord -> m ()
 mayUpdateCost Nothing _ _ = return ()
 mayUpdateCost (Just cost) target origin = do
