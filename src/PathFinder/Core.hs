@@ -3,12 +3,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Path.Internal ( Path
-                     , pathLength
-                     , pathCoords
+module PathFinder.Core ( Path
+                       , pathLength
+                       , pathCoords
 
-                     , pathFinderSearch
-                     ) where
+                       , pathFinderSearch
+                       ) where
 
 import Control.Lens.Operators
 import Control.Lens (view, use)

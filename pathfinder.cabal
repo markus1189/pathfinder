@@ -17,7 +17,7 @@ cabal-version:       >=1.10
 
 library
   ghc-options:         -Wall -Werror
-  exposed-modules:     Path, Path.Internal
+  exposed-modules:     PathFinder.Core
   -- other-modules:
   other-extensions:    TemplateHaskell, GeneralizedNewtypeDeriving, FlexibleContexts
   build-depends:       base >=4.6 && <4.7,
@@ -27,7 +27,6 @@ library
                        transformers >=0.3 && <0.4,
                        mtl >=2.1 && <2.2,
                        lens >= 3.10 && < 4.0,
-                       PSQueue >= 1.1 && <1.2,
-                       linear >= 1.3 && < 1.4
+                       PSQueue >= 1.1 && <1.2
   hs-source-dirs:      src
   default-language:    Haskell2010
