@@ -11,7 +11,7 @@ import PathFinder.Core ( pathFinderSearch
                        , PathFinderState
                        )
 import Control.Lens.Operators
-import Control.Lens (allOf, both, _Just, _1)
+import Control.Lens (_Just, _1)
 import Control.Monad (guard)
 import Linear.V2 (R2, V2, _x, _y)
 import Linear.Metric (distance)
@@ -46,7 +46,7 @@ neighbors2d :: (Eq d, Num d, R2 v) => v d -> [v d]
 neighbors2d coord = do
   dx <- [-1,0,1]
   dy <- [-1,0,1]
-  guard $ allOf both (/=0) (dx,dy)
+  guard $ (dx,dy) /= (0,0)
   return $ coord & _x +~ dx & _y +~ dy
 
 searchGraphMatrix :: Integral i => i -> i -> [[Maybe i]] -> Maybe (Path i i)
