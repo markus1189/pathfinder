@@ -4,8 +4,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module PathFinder.Core ( Path
-                       , pathLength
+                       , pathCost
                        , pathCoords
+
+                       , PathFinderConfig (..)
+                       , PathFinderState
 
                        , pathFinderSearch
                        ) where
@@ -28,7 +31,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.PSQueue as PSQ
 
-data Path l c = Path { _pathLength :: !l
+data Path l c = Path { _pathCost :: !l
                      , _pathCoords :: [c]
                      } deriving (Show,Eq)
 makeLenses ''Path
@@ -51,7 +54,7 @@ data PathFinderConfig coord cost score =
                      , _stepCost :: coord -> coord -> cost
                      , _neighbors :: coord -> [coord]
                      , _isGoal :: coord -> Bool
-                     , _adder :: cost -> score -> cost
+                     , _combineCostScore :: cost -> score -> cost
                      }
 makeLenses ''PathFinderConfig
 
@@ -111,8 +114,8 @@ reconstructPath finish pmap = do
     go :: Ord coord => coord -> [coord]
     go current = case Map.lookup current pmap of
       Nothing -> []
-      Just (_, Just predec) -> current : go predec
       Just (_, Nothing) -> [current]
+      Just (_, Just predec) -> current : go predec
 
 nodesLeftToExpand :: ( Functor m
                      , MonadState (PathFinderState coord cost) m) => m Int
@@ -139,7 +142,7 @@ analyzeNb predecessor nb = do
   unless alreadySeen $ do
       heuristicValue <- view heuristicScore <*> pure nb
       when (isJust newCost) $ do
-        plus <- view adder
+        plus <- view combineCostScore
         open %= insertIfNotPresent nb (fromJust newCost `plus` heuristicValue)
 
 analyzeNbs :: ( Ord coord
@@ -186,19 +189,17 @@ alreadyVisited :: ( Ord coord
                   , MonadState (PathFinderState coord cost) m) => coord -> m Bool
 alreadyVisited c = Set.member c <$> use closed
 
-pathFinderSearch :: forall coord cost score. (Ord coord, Ord score, Num cost, Num score, Ord cost) =>
-                    (coord -> [coord])
-                 -> (coord -> Bool)
-                 -> (coord -> score)
-                 -> (coord -> coord -> cost)
-                 -> coord
-                 -> (coord -> Bool)
-                 -> (cost -> score -> cost)
-                 -> (Maybe (Path cost coord), PathFinderState coord cost)
-pathFinderSearch nbs walkable heuristic step start isGoalP plus =
-  runPathFinder config initState $ findPath start
+pathFinderSearch :: forall coord cost score.
+                    ( Num cost
+                    , Num score
+                    , Ord coord
+                    , Ord cost
+                    , Ord score
+                    ) => PathFinderConfig coord cost score
+                      -> coord
+                      -> (Maybe (Path cost coord), PathFinderState coord cost)
+pathFinderSearch cfg start = runPathFinder cfg initState $ findPath start
   where
-    config = PathFinderConfig walkable heuristic step nbs isGoalP plus
     initState :: (PathFinderState coord cost)
     initState = def & seen %~ Map.insert start (0,Nothing)
                     & open %~ PSQ.insert start 0
