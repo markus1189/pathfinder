@@ -8,7 +8,9 @@ module PathFinder.Core ( Path
                        , pathCoords
 
                        , PathFinderConfig (..)
+
                        , PathFinderState
+                       , seen
 
                        , pathFinderSearch
                        ) where
