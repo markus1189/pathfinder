@@ -26,6 +26,7 @@ import Control.Monad.State.Class
 
 import Data.Default
 import Data.Maybe (isJust,fromJust)
+import Data.Monoid (mempty, mappend, Monoid)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -72,7 +73,7 @@ runPathFinder :: PathFinderConfig coord cost score ->
                  (a,PathFinderState coord cost)
 runPathFinder c st (PathFinder a) = runIdentity $ runStateT (runReaderT a c) st
 
-findPath :: (Ord cost, Ord coord, Ord score, Num cost, Num score) =>
+findPath :: (Ord cost, Ord coord, Ord score, Monoid cost, Monoid score) =>
             coord
          -> PathFinder coord cost score (Maybe (Path cost coord))
 findPath current = do
@@ -94,21 +95,21 @@ findPath current = do
 
 visitAndExpand :: ( Ord coord
                   , Ord cost
-                  , Num cost
+                  , Monoid cost
                   , Applicative m
                   , MonadState (PathFinderState coord cost) m
                   , MonadReader (PathFinderConfig coord cost score) m
                   ) => coord -> m ()
 visitAndExpand c = visit c >> expand c >>= analyzeNbs c
 
-reconstructPath :: forall coord cost. (Ord coord, Num cost) =>
+reconstructPath :: forall coord cost. (Ord coord, Monoid cost) =>
                    coord
                 -> PredecessorMap coord cost
                 -> Maybe (Path cost coord)
 reconstructPath finish pmap = do
   (totalCost,predec) <- Map.lookup finish pmap
   case predec of
-    Nothing -> return $ Path 0 []
+    Nothing -> return $ Path mempty []
     Just _ -> return $ Path totalCost (reverse $ go finish)
   where
     go :: Ord coord => coord -> [coord]
@@ -128,7 +129,7 @@ expand coord = filter <$> view canBeWalked <*> (view neighbors <*> pure coord)
 
 analyzeNb :: ( Ord coord
              , Ord cost
-             , Num cost
+             , Monoid  cost
              , Applicative m
              , MonadReader (PathFinderConfig coord cost score) m
              , MonadState (PathFinderState coord cost) m
@@ -137,7 +138,7 @@ analyzeNb predecessor nb = do
   alreadySeen <- alreadyVisited nb
   costSoFar <- costFor predecessor
   estimation <- view stepCost <*> pure predecessor <*> pure nb
-  let newCost = (+) <$> costSoFar <*> pure estimation
+  let newCost = mappend <$> costSoFar <*> pure estimation
   mayUpdateCost newCost nb predecessor
   unless alreadySeen $ do
       heuristicValue <- view heuristicScore <*> pure nb
@@ -147,7 +148,7 @@ analyzeNb predecessor nb = do
 
 analyzeNbs :: ( Ord coord
               , Ord cost
-              , Num cost
+              , Monoid cost
               , Applicative m
               , MonadReader (PathFinderConfig coord cost score) m
               , MonadState (PathFinderState coord cost) m
@@ -190,8 +191,8 @@ alreadyVisited :: ( Ord coord
 alreadyVisited c = Set.member c <$> use closed
 
 pathFinderSearch :: forall coord cost score.
-                    ( Num cost
-                    , Num score
+                    ( Monoid cost
+                    , Monoid score
                     , Ord coord
                     , Ord cost
                     , Ord score
@@ -201,5 +202,5 @@ pathFinderSearch :: forall coord cost score.
 pathFinderSearch cfg start = runPathFinder cfg initState $ findPath start
   where
     initState :: (PathFinderState coord cost)
-    initState = def & seen %~ Map.insert start (0,Nothing)
-                    & open %~ PSQ.insert start 0
+    initState = def & seen %~ Map.insert start (mempty,Nothing)
+                    & open %~ PSQ.insert start mempty
