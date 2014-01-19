@@ -36,7 +36,7 @@ search2d start end blocked =
     pathFinderSearch cfg start & _1 . _Just . pathCost %~ getSum
     where cfg = PathFinderConfig { _canBeWalked = not . blocked
                                  , _heuristicScore = Sum . (`distance` end)
-                                 , _stepCost = \_ _ -> (Sum 1)
+                                 , _stepCost = \c1 c2 -> Sum $ distance c1 c2
                                  , _neighbors = neighbors2d
                                  , _isGoal = (== end)
                                  , _combineCostScore = (<>)
