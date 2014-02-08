@@ -21,10 +21,10 @@ import Data.Monoid ( Sum(Sum, getSum)
                    , (<>))
 
 search2d' :: (Ord d, Floating d) =>
-            V2 d
-         -> V2 d
-         -> (V2 d -> Bool)
-         -> Maybe (Path d (V2 d))
+             V2 d
+          -> V2 d
+          -> (V2 d -> Bool)
+          -> Maybe (Path d (V2 d))
 search2d' start end blocked = fst $ search2d start end blocked
 
 search2d :: (Ord d, Floating d) =>
@@ -52,19 +52,19 @@ neighbors2d coord = do
 searchGraphMatrix :: Integral i => i -> i -> [[Maybe i]] -> Maybe (Path i i)
 searchGraphMatrix start end matrix =
     fst (pathFinderSearch cfg start) & _Just . pathCost %~ getSum
-    where cfg = PathFinderConfig { _canBeWalked = const True
-                                 , _heuristicScore = const (Sum 1)
-                                 , _stepCost = \x y -> Sum $ fromJust
-                                               (matrix `genericIndex` y
-                                                           `genericIndex` x)
-                                 , _neighbors = matrixNeighbors matrix
-                                 , _isGoal = (== end)
-                                 , _combineCostScore = (<>)
-                                 }
+  where cfg = PathFinderConfig { _canBeWalked = const True
+                               , _heuristicScore = const (Sum 1)
+                               , _stepCost = \x y -> Sum $ fromJust
+                                             (matrix `genericIndex` y
+                                                       `genericIndex` x)
+                               , _neighbors = matrixNeighbors matrix
+                               , _isGoal = (== end)
+                               , _combineCostScore = (<>)
+                               }
 
 matrixNeighbors :: Integral i => [[Maybe i]] -> i -> [i]
 matrixNeighbors m i = map fst . filter (\(_, may) -> isJust may) $ zip [0..] row
-    where row = m `genericIndex` i
+  where row = m `genericIndex` i
 
 graph :: [[Maybe Int]]
 graph = [ [Nothing, Just 4, Just 2, Nothing, Just 6, Nothing, Nothing, Nothing]
