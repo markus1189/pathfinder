@@ -8,15 +8,11 @@ import PathFinder.Core ( pathFinderSearch
                        , PathFinderState
                        )
 import PathFinder.Types
+import PathFinder.Configs
 import Control.Lens.Operators
 import Control.Lens (_Just, _1)
-import Control.Monad (guard)
-import Linear.V2 (R2, V2, _x, _y)
-import Linear.Metric (distance)
-import Data.Maybe (fromJust, isJust)
-import Data.List (genericIndex)
-import Data.Monoid ( Sum(Sum, getSum)
-                   , (<>))
+import Linear.V2 (V2)
+import Data.Monoid ( Sum(getSum) )
 
 search2d' :: (Ord d, Floating d) =>
              V2 d
@@ -32,36 +28,12 @@ search2d :: (Ord d, Floating d) =>
          -> (Maybe (Path d (V2 d)), PathFinderState (V2 d) (Sum d))
 search2d start end blocked =
     pathFinderSearch cfg start & _1 . _Just . pathCost %~ getSum
-    where cfg = PathFinderConfig { _canBeWalked = not . blocked
-                                 , _heuristicScore = Sum . (`distance` end)
-                                 , _stepCost = \c1 c2 -> Sum $ distance c1 c2
-                                 , _neighbors = neighbors2d
-                                 , _isGoal = (== end)
-                                 , _combineCostScore = (<>)
-                                 }
-
-neighbors2d :: (Eq d, Num d, R2 v) => v d -> [v d]
-neighbors2d coord = do
-  dx <- [-1,0,1]
-  dy <- [-1,0,1]
-  guard $ (dx,dy) /= (0,0)
-  return $ coord & _x +~ dx & _y +~ dy
+    where cfg = searchIn2d end & canBeWalked %~ \prevBlock x -> prevBlock x || blocked x
 
 searchGraphMatrix :: Integral i => i -> i -> [[Maybe i]] -> Maybe (Path i i)
 searchGraphMatrix start end matrix =
     fst (pathFinderSearch cfg start) & _Just . pathCost %~ getSum
-  where cfg = PathFinderConfig { _canBeWalked = const True
-                               , _heuristicScore = const (Sum 1)
-                               , _stepCost = \x y -> Sum . fromJust $
-                                       (matrix `genericIndex` y `genericIndex` x)
-                               , _neighbors = matrixNeighbors matrix
-                               , _isGoal = (== end)
-                               , _combineCostScore = (<>)
-                               }
-
-matrixNeighbors :: Integral i => [[Maybe i]] -> i -> [i]
-matrixNeighbors m i = map fst . filter (\(_, may) -> isJust may) $ zip [0..] row
-  where row = m `genericIndex` i
+  where cfg = searchInMatrix end matrix
 
 graph :: [[Maybe Int]]
 graph = [ [Nothing, Just 4, Just 2, Nothing, Just 6, Nothing, Nothing, Nothing]
