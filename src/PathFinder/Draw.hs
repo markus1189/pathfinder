@@ -6,11 +6,13 @@ import Diagrams.Backend.SVG.CmdLine
 import Diagrams.Prelude
 
 import Control.Lens.Operators ((^.))
-import PathFinder.Core (seen, pathCoords)
-import qualified PathFinder.Core as PFC
-import PathFinder.Interface (search2d)
-import qualified Data.Map as Map
 
+import PathFinder.Core (seen)
+import PathFinder.Types
+import PathFinder.Interface (search2d)
+import qualified PathFinder.Types as PT
+
+import qualified Data.Map as Map
 import qualified Control.Lens as Lens
 
 blocked :: (Num d, Ord d, Enum d) => LV2.V2 d -> Bool
@@ -23,7 +25,7 @@ blocked (LV2.V2 x y ) = x < -20
                         || (x > 3 && (y == 0 && x /= 18))
                         || (x `elem` [14..19] && y `elem` [0..(-10)])
 
-drawPath :: LV2.R2 v => PFC.Path Double (v Double) -> Diagram B R2
+drawPath :: LV2.R2 v => PT.Path Double (v Double) -> Diagram B R2
 drawPath path = stroke (fromVertices points) # lw 0.1
   where coordinates = path ^. pathCoords
         points = map toPoint coordinates

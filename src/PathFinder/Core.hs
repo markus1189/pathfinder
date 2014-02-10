@@ -3,17 +3,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module PathFinder.Core ( Path
-                       , pathCost
-                       , pathCoords
-
-                       , PathFinderConfig (..)
-
-                       , PathFinderState
+module PathFinder.Core ( PathFinderState
                        , seen
 
                        , pathFinderSearch
+                       , reconstructPath
                        ) where
+import PathFinder.Types
 
 import Control.Lens.Operators
 import Control.Lens (view, use)
@@ -34,11 +30,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.PSQueue as PSQ
 
-data Path l c = Path { _pathCost :: !l
-                     , _pathCoords :: [c]
-                     } deriving (Show,Eq)
-makeLenses ''Path
-
 type PredecessorMap coord cost = Map.Map coord (cost,Maybe coord)
 
 data PathFinderState coord cost =
@@ -50,16 +41,6 @@ makeLenses ''PathFinderState
 
 instance (Ord coord, Ord cost) => Default (PathFinderState coord cost) where
   def = PathFinderState def PSQ.empty def
-
-data PathFinderConfig coord cost score =
-    PathFinderConfig { _canBeWalked :: coord -> Bool
-                     , _heuristicScore :: coord -> score
-                     , _stepCost :: coord -> coord -> cost
-                     , _neighbors :: coord -> [coord]
-                     , _isGoal :: coord -> Bool
-                     , _combineCostScore :: cost -> score -> cost
-                     }
-makeLenses ''PathFinderConfig
 
 newtype PathFinder coord cost score a =
     PathFinder (ReaderT
