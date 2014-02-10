@@ -32,13 +32,13 @@ search2d :: (Ord d, Floating d) =>
          -> (Maybe (Path d (V2 d)), PathFinderState (V2 d) (Sum d))
 search2d start end blocked =
     pathFinderSearch cfg start & _1 . _Just . pathCost %~ getSum
-    where cfg = undefinedConfig
-                & canBeWalked .~ not . blocked
-                & heuristicScore .~ Sum . (`distance` end)
-                & stepCost .~ (\c1 c2 -> Sum $ distance c1 c2)
-                & neighbors .~ neighbors2d
-                & isGoal .~ (== end)
-                & combineCostScore .~ (<>)
+    where cfg = PathFinderConfig { _canBeWalked = not . blocked
+                                 , _heuristicScore = Sum . (`distance` end)
+                                 , _stepCost = \c1 c2 -> Sum $ distance c1 c2
+                                 , _neighbors = neighbors2d
+                                 , _isGoal = (== end)
+                                 , _combineCostScore = (<>)
+                                 }
 
 neighbors2d :: (Eq d, Num d, R2 v) => v d -> [v d]
 neighbors2d coord = do
@@ -50,14 +50,14 @@ neighbors2d coord = do
 searchGraphMatrix :: Integral i => i -> i -> [[Maybe i]] -> Maybe (Path i i)
 searchGraphMatrix start end matrix =
     fst (pathFinderSearch cfg start) & _Just . pathCost %~ getSum
-  where cfg = undefinedConfig
-              & canBeWalked .~ const True
-              & heuristicScore .~ const (Sum 1)
-              & stepCost .~ (\x y ->
-                             Sum $ fromJust (matrix `genericIndex` y `genericIndex` x))
-              & neighbors .~ matrixNeighbors matrix
-              & isGoal .~ (== end)
-              & combineCostScore .~ (<>)
+  where cfg = PathFinderConfig { _canBeWalked = const True
+                               , _heuristicScore = const (Sum 1)
+                               , _stepCost = \x y -> Sum . fromJust $
+                                       (matrix `genericIndex` y `genericIndex` x)
+                               , _neighbors = matrixNeighbors matrix
+                               , _isGoal = (== end)
+                               , _combineCostScore = (<>)
+                               }
 
 matrixNeighbors :: Integral i => [[Maybe i]] -> i -> [i]
 matrixNeighbors m i = map fst . filter (\(_, may) -> isJust may) $ zip [0..] row

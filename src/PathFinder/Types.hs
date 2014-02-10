@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
-module PathFinder.Types ( PathFinderConfig
-                        , undefinedConfig
+module PathFinder.Types ( PathFinderConfig (..)
+                        , pathFinderConfig
                         , canBeWalked
                         , heuristicScore
                         , stepCost
@@ -11,7 +11,7 @@ module PathFinder.Types ( PathFinderConfig
                         , Path (Path)
                         , pathCost
                         , pathCoords
-                        )where
+                        ) where
 
 import Control.Lens.TH
 
@@ -25,15 +25,14 @@ data PathFinderConfig coord cost score =
                      }
 makeLenses ''PathFinderConfig
 
-undefinedConfig :: PathFinderConfig coord cost score
-undefinedConfig = PathFinderConfig { _canBeWalked = errMsg "canBeWalked"
-                                   , _heuristicScore = errMsg "heuristicScore"
-                                   , _stepCost = errMsg "stepCost"
-                                   , _neighbors = errMsg "neighbors"
-                                   , _isGoal = errMsg "isGoal"
-                                   , _combineCostScore = errMsg "combineCostScore"
-                                   }
-  where errMsg s = error $ s ++ " undefined in PathFinderConfig"
+pathFinderConfig :: (coord -> Bool)
+                 -> (coord -> score)
+                 -> (coord -> coord -> cost)
+                 -> (coord -> [coord])
+                 -> (coord -> Bool)
+                 -> (cost -> score -> cost)
+                 -> PathFinderConfig coord cost score
+pathFinderConfig = PathFinderConfig
 
 data Path l c = Path { _pathCost :: !l
                      , _pathCoords :: [c]
